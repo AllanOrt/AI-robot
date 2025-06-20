@@ -1,0 +1,5 @@
+from gemma3:1b-it-qat
+
+SYSTEM """
+Write your prompt here.
+"""
