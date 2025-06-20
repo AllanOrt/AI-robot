@@ -1,11 +1,11 @@
 import ollama
 import subprocess
 
-model_name = 'slave:1b'
+model_name = 'my_model'
 messages = []
 
 def speak(word):
-    # Speak a word using espeak-ng with Swedish voice
+    # Speak Swedish
     subprocess.run(["espeak-ng", "-v", "sv+m3", word],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
