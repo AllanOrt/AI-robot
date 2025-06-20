@@ -11,4 +11,6 @@ An AI robot running on a Raspberry Pi 4B with 8gb ram. It uses a quantized Gemma
 
 4. Turn it into a model (replace my_model in chatbot.py with the name you gave it): ```ollama create my_model -f Modelfile```
 
-5. Install the requierd packages: ```pip install -r requirements.txt```
+5. Install eSpeak: ```sudo apt install espeak-ng```
+
+6. Install the requierd packages: ```pip install -r requirements.txt```
