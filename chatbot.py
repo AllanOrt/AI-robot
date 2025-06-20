@@ -1,13 +1,13 @@
 import ollama
 import subprocess
 
-model_name = 'my_model'
+model_name = 'slave:1b'
 messages = []
 
-def speak(word):
-    # Speak Swedish
-    subprocess.run(["espeak-ng", "-v", "sv+m3", word],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def speak(text):
+    if text.strip():
+        subprocess.run(["espeak-ng", "-v", "sv+m3", text],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 while True:
     user_input = input("Du: ")
@@ -18,28 +18,28 @@ while True:
 
     print("Bot:", end=' ', flush=True)
     response = ""
-    buffer = ""
+    sentence_buffer = ""
 
     for chunk in ollama.chat(model=model_name, messages=messages, stream=True):
         content = chunk['message']['content']
         print(content, end='', flush=True)
         response += content
-        buffer += content
+        sentence_buffer += content
 
-        # Speak word when space or punctuation is detected
-        while any(sep in buffer for sep in [' ', '.', '!', '?']):
-            for sep in [' ', '.', '!', '?']:
-                if sep in buffer:
-                    idx = buffer.find(sep)
-                    word = buffer[:idx + 1].strip()
-                    if word:
-                        speak(word)
-                    buffer = buffer[idx + 1:]
+        # Check for sentence-ending punctuation
+        while any(p in sentence_buffer for p in ['.', '!', '?']):
+            for p in ['.', '!', '?']:
+                if p in sentence_buffer:
+                    idx = sentence_buffer.find(p)
+                    sentence = sentence_buffer[:idx + 1].strip()
+                    if sentence:
+                        speak(sentence)
+                    sentence_buffer = sentence_buffer[idx + 1:].lstrip()
                     break
 
-    # Speak any remaining word
-    if buffer.strip():
-        speak(buffer.strip())
+    # Speak any remaining sentence part
+    if sentence_buffer.strip():
+        speak(sentence_buffer.strip())
 
     print()
     messages.append({"role": "assistant", "content": response})
