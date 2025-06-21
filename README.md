@@ -1,5 +1,6 @@
 # AI robot
-An AI robot running on a Raspberry Pi 4B with 8gb ram. It uses a quantized Gemma3 one billion perameter, with ollama. It has blinking lights and other cool stuff :)
+An AI robot running on a Raspberry Pi 4B with 8gb ram. It uses a quantized Gemma3 one billion perameter, with ollama. It has blinking lights and other cool stuff :)<br><br>
+<img src="img.png" alt="Icon" width="600px">
 
 # How to install
 1. Install ollama:
