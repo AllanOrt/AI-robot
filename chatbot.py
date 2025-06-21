@@ -1,45 +1,116 @@
+# Imports
 import ollama
 import subprocess
+import sys
+import termios
+import tty
+import shutil
+import os
 
-model_name = 'slave:1b'
-messages = []
+# Hide cursor
+print("\033[?25l", end="", flush=True)
 
+# Clear screen depending on OS
+if os.name == 'nt':
+    os.system('cls')
+else:
+    os.system('clear')
+
+# ASCII art to display on launch
+text_art = """
+ ░▒▓███████▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓████████▓▒░▒▓███████▓▒░░▒▓███████▓▒░
+░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
+░▒▓█▓▒░       ░▒▓█▓▒▒▓█▓▒░░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
+ ░▒▓██████▓▒░ ░▒▓█▓▒▒▓█▓▒░░▒▓██████▓▒░ ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
+       ░▒▓█▓▒░ ░▒▓█▓▓█▓▒░ ░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
+       ░▒▓█▓▒░ ░▒▓█▓▓█▓▒░ ░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
+░▒▓███████▓▒░   ░▒▓██▓▒░  ░▒▓████████▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
+"""
+
+# Get terminal size to center the text art
+cols, rows = shutil.get_terminal_size()
+lines = text_art.strip().splitlines()
+max_len = max(len(line) for line in lines)
+start_x = (cols - max_len) // 2 + 1
+start_y = (rows - len(lines)) // 2 + 1
+
+# Print the ASCII art centered
+for i, line in enumerate(lines):
+    # Offset the first line to the right, because it collapses white space
+    x_pos = start_x + 1 if i == 0 else start_x
+    
+    # Print it green
+    print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")
+
+# Setup model and conversation history
+model = 'my_model'
+chat_history = []
+
+# Function to speak a line using espeak-ng
 def speak(text):
     if text.strip():
         subprocess.run(["espeak-ng", "-v", "sv+m3", text],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+# Reads input from user
+def hidden_input():
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        chars = []
+        while True:
+            ch = sys.stdin.read(1)
+            if ch in ('\n', '\r'):
+                sys.stdout.write('\r\x1b[2K')
+                sys.stdout.flush()
+                break
+            elif ch == '\x03':  # Ctrl+C
+                raise KeyboardInterrupt
+            elif ch == '\x7f' and chars:  # Backspace
+                chars.pop()
+            else:
+                chars.append(ch)
+        return ''.join(chars)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+# Main input/output loop
 while True:
-    user_input = input("Du: ")
-    if not user_input:
+    try:
+        prompt = hidden_input()
+    except KeyboardInterrupt:
         break
 
-    messages.append({"role": "user", "content": user_input})
+    if not prompt:
+        break
 
-    print("Bot:", end=' ', flush=True)
+    # Add user prompt to chat history
+    chat_history.append({"role": "user", "content": prompt})
+
     response = ""
-    sentence_buffer = ""
+    buffer = ""
 
-    for chunk in ollama.chat(model=model_name, messages=messages, stream=True):
-        content = chunk['message']['content']
-        print(content, end='', flush=True)
-        response += content
-        sentence_buffer += content
+    # Stream response from model
+    for chunk in ollama.chat(model=model, messages=chat_history, stream=True):
+        text = chunk['message']['content']
+        response += text
+        buffer += text
 
-        # Check for sentence-ending punctuation
-        while any(p in sentence_buffer for p in ['.', '!', '?']):
+        # Speak completed sentences as they arrive
+        while any(p in buffer for p in ['.', '!', '?']):
             for p in ['.', '!', '?']:
-                if p in sentence_buffer:
-                    idx = sentence_buffer.find(p)
-                    sentence = sentence_buffer[:idx + 1].strip()
+                if p in buffer:
+                    i = buffer.find(p)
+                    sentence = buffer[:i+1].strip()
                     if sentence:
                         speak(sentence)
-                    sentence_buffer = sentence_buffer[idx + 1:].lstrip()
+                    buffer = buffer[i+1:].lstrip()
                     break
 
-    # Speak any remaining sentence part
-    if sentence_buffer.strip():
-        speak(sentence_buffer.strip())
+    # Speak any remaining text
+    if buffer.strip():
+        speak(buffer.strip())
 
-    print()
-    messages.append({"role": "assistant", "content": response})
+    # Add response to chat history
+    chat_history.append({"role": "assistant", "content": response})
