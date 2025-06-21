@@ -7,8 +7,7 @@ import tty
 import shutil
 import os
 
-# Hide cursor
-print("\033[?25l", end="", flush=True)
+print("\033[?25l", end="", flush=True) # Hide cursor
 
 # Clear screen depending on OS
 if os.name == 'nt':
@@ -36,11 +35,8 @@ start_y = (rows - len(lines)) // 2 + 1
 
 # Print the ASCII art centered
 for i, line in enumerate(lines):
-    # Offset the first line to the right, because it collapses white space
-    x_pos = start_x + 1 if i == 0 else start_x
-    
-    # Print it green
-    print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")
+    x_pos = start_x + 1 if i == 0 else start_x # Offset the first line to the right, because it collapses white space    
+    print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")# Print it green
 
 # Setup model and conversation history
 model = 'my_model'
@@ -80,6 +76,7 @@ while True:
     try:
         prompt = hidden_input()
     except KeyboardInterrupt:
+        print("\033[?25h", end="", flush=True) # Show curser
         break
 
     if not prompt:
