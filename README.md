@@ -37,4 +37,4 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-See the full license in the LICENSE file or visit: https://www.gnu.org/licenses/gpl-3.0.html
+See the full license in the LICENSE file or visit https://www.gnu.org/licenses/gpl-3.0.html
