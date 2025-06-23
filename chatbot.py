@@ -5,7 +5,6 @@ import termios
 import tty
 import shutil
 import os
-import random
 import time
 import threading
 import RPi.GPIO as GPIO
@@ -73,84 +72,51 @@ max_len = max(len(line) for line in lines)
 start_x = (cols - max_len) // 2 + 1
 start_y = (rows - len(lines)) // 2 + 1
 
-glitching = True
 is_speaking = False
+animation_thread = None
 
-def glitch_animation():
-    glitch_duration = 0.3
-    glitch_end_times = [0] * len(lines)
+def print_art(art):
+    art_lines = art.strip().splitlines()
+    for i, line in enumerate(art_lines):
+        x_pos = start_x + (14 if i == 0 else 0)    # shift first line 14 chars right to compensate for removal of leading white space
+        print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")
 
-    while glitching:
-        for i in range(len(lines)):
-            print(f"\033[{start_y + i};0H{' ' * (cols + 2)}", end="")
-        now = time.time()
-
-        for i, line in enumerate(lines):
-            if i == len(lines) - 1:
-                glitch = 0
-            else:
-                if now < glitch_end_times[i]:
-                    glitch = random.choice([-1, 1])
-                else:
-                    if random.random() < 0.0075:
-                        glitch_end_times[i] = now + glitch_duration
-                        glitch = random.choice([-1, 1])
-                    else:
-                        glitch = 0
-
-            x_pos = start_x + glitch
-            if i == 0:
-                x_pos += 14    # To compensate for the removal of leading white spaces
-
-            print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")
-
-        time.sleep(0.0625)
-
-def speaking_animation():
+def mouth_animation():
     global is_speaking
     frame = False
-    while glitching:
-        if is_speaking:
-            current_frame = MOUTH_OPEN if frame else MOUTH_CLOSED
-            frame = not frame
-            frame_lines = current_frame.strip().splitlines()
-            for i, line in enumerate(frame_lines):
-                x_pos = start_x + (1 if i == 0 else 0)
-                print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")
-            time.sleep(0.3)
-        else:
-            time.sleep(0.05)
+    while is_speaking:
+        current_frame = MOUTH_OPEN if frame else MOUTH_CLOSED
+        frame = not frame
+        print_art(current_frame)
+        time.sleep(0.3)
+    print_art(MOUTH_CLOSED)
 
-for i, line in enumerate(lines):
-    x_pos = start_x + (1 if i == 0 else 0)
-    print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")
-
-glitch_thread = threading.Thread(target=glitch_animation, daemon=True)
-glitch_thread.start()
-
-speaking_thread = threading.Thread(target=speaking_animation, daemon=True)
-speaking_thread.start()
+# Print initial mouth closed art
+print_art(MOUTH_CLOSED)
 
 model = 'slave:1b'
 chat_history = []
 
 def speak(text: str):
-    global is_speaking
+    global is_speaking, animation_thread
 
-    def run_speech():
-        nonlocal text
-        if text.strip():
-            is_speaking = True
-            subprocess.run(
-                ["espeak-ng", "-v", "sv+m3", text],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            is_speaking = False
+    if text.strip():
+        is_speaking = True
 
-    t = threading.Thread(target=run_speech)
-    t.start()
-    t.join()
+        # Start animation thread if not running
+        if animation_thread is None or not animation_thread.is_alive():
+            animation_thread = threading.Thread(target=mouth_animation, daemon=True)
+            animation_thread.start()
+
+        subprocess.run(
+            ["espeak-ng", "-v", "sv+m3", text],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+        is_speaking = False
+        if animation_thread:
+            animation_thread.join()
 
 def hidden_input() -> str:
     fd = sys.stdin.fileno()
@@ -211,11 +177,11 @@ try:
         update_status("ready")
 
 except KeyboardInterrupt:
-    glitching = False
-    glitch_thread.join()
-    speaking_thread.join()
+    is_speaking = False
+    if animation_thread:
+        animation_thread.join()
     print("\033[?25h", end="", flush=True)
-    
+
     # Turn off all lamps explicitly before cleanup
     for pin in GPIO_PINS.values():
         GPIO.output(pin, GPIO.LOW)
