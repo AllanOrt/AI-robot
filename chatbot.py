@@ -10,7 +10,7 @@ import time
 import threading
 import RPi.GPIO as GPIO
 
-# --- GPIO SETUP ---
+# GPIO setup
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
@@ -28,16 +28,10 @@ def update_status(state: str):
     for pin in GPIO_PINS.values():
         GPIO.output(pin, GPIO.LOW)
 
-    # Set correct GPIO pin based on state
-    if state == "Typing...":
-        GPIO.output(GPIO_PINS["typing"], GPIO.HIGH)
-    elif state == "Thinking...":
-        GPIO.output(GPIO_PINS["thinking"], GPIO.HIGH)
-    elif state == "You can type...":
-        GPIO.output(GPIO_PINS["ready"], GPIO.HIGH)
-
-    # Print status in top-right corner
-    print(f"\033[1;{cols - len(state)}H\033[36m{state}\033[0m", end="", flush=True)
+    # Turn on the pin for the given state
+    pin = GPIO_PINS.get(state)
+    if pin is not None:
+        GPIO.output(pin, GPIO.HIGH)
 
 # Hide cursor
 print("\033[?25l", end="", flush=True)
@@ -47,24 +41,40 @@ def clear_screen():
 
 clear_screen()
 
-TEXT_ART = """
- ░▒▓███████▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓████████▓▒░▒▓███████▓▒░░▒▓███████▓▒░
-░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
-░▒▓█▓▒░       ░▒▓█▓▒▒▓█▓▒░░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
- ░▒▓██████▓▒░ ░▒▓█▓▒▒▓█▓▒░░▒▓██████▓▒░ ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
-       ░▒▓█▓▒░ ░▒▓█▓▓█▓▒░ ░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
-       ░▒▓█▓▒░ ░▒▓█▓▓█▓▒░ ░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
-░▒▓███████▓▒░   ░▒▓██▓▒░  ░▒▓████████▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░
- Svarsenhet med Vanligtvis   Effektivt    Neuralt      Nätverk
+MOUTH_CLOSED = """
+              ▄▄▄▄▄▄          ▄▄▄▄▄▄              
+           ▄▀▀      ▀▀▀▀▀▀▀▀▀▀      ▀▀▄           
+         ▄▀                            ▀▄         
+     ▄▄▀▀                                ▀▀▄▄     
+ ▄▄██▄▄▄▄▄▄▄▄▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▄▄▄▄▄▄▄▄██▄▄ 
+▀▀▀▄▄                                        ▄▄▀▀▀
+     ▀▀▄                                  ▄▀▀     
+        ▀▀▀▄▄                        ▄▄▀▀▀        
+             ▀▀▀▀▀▄▄▄        ▄▄▄▀▀▀▀▀             
+                     ▀▀▀▀▀▀▀▀                     
+"""
+
+MOUTH_OPEN = """
+              ▄▄▄▄▄▄          ▄▄▄▄▄▄              
+           ▄▀▀      ▀▀▀▀▀▀▀▀▀▀      ▀▀▄           
+         ▄▀                            ▀▄         
+     ▄▄▀▀         ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄        ▀▀▄▄     
+ ▄▄██▄▄▄▄▄▄▀▀▀▀▀▀▀               ▀▀▀▀▀▀▄▄▄▄▄▄██▄▄ 
+▀▀▀▄▄    ▀▀▀▀▀▄▄▄▄▄            ▄▄▄▄▄▀▀▀▀▀    ▄▄▀▀▀
+     ▀▀▄           ▀▀▀▀▀▀▀▀▀▀▀▀           ▄▀▀     
+        ▀▀▀▄▄                        ▄▄▀▀▀        
+             ▀▀▀▀▀▄▄▄        ▄▄▄▀▀▀▀▀             
+                     ▀▀▀▀▀▀▀▀                     
 """
 
 cols, rows = shutil.get_terminal_size()
-lines = TEXT_ART.strip().splitlines()
+lines = MOUTH_CLOSED.strip().splitlines()
 max_len = max(len(line) for line in lines)
 start_x = (cols - max_len) // 2 + 1
 start_y = (rows - len(lines)) // 2 + 1
 
 glitching = True
+is_speaking = False
 
 def glitch_animation():
     glitch_duration = 0.3
@@ -90,11 +100,26 @@ def glitch_animation():
 
             x_pos = start_x + glitch
             if i == 0:
-                x_pos += 1
+                x_pos += 14    # To compensate for the removal of leading white spaces
 
             print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")
 
         time.sleep(0.0625)
+
+def speaking_animation():
+    global is_speaking
+    frame = False
+    while glitching:
+        if is_speaking:
+            current_frame = MOUTH_OPEN if frame else MOUTH_CLOSED
+            frame = not frame
+            frame_lines = current_frame.strip().splitlines()
+            for i, line in enumerate(frame_lines):
+                x_pos = start_x + (1 if i == 0 else 0)
+                print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")
+            time.sleep(0.3)
+        else:
+            time.sleep(0.05)
 
 for i, line in enumerate(lines):
     x_pos = start_x + (1 if i == 0 else 0)
@@ -103,16 +128,29 @@ for i, line in enumerate(lines):
 glitch_thread = threading.Thread(target=glitch_animation, daemon=True)
 glitch_thread.start()
 
+speaking_thread = threading.Thread(target=speaking_animation, daemon=True)
+speaking_thread.start()
+
 model = 'slave:1b'
 chat_history = []
 
 def speak(text: str):
-    if text.strip():
-        subprocess.run(
-            ["espeak-ng", "-v", "sv+m3", text],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
+    global is_speaking
+
+    def run_speech():
+        nonlocal text
+        if text.strip():
+            is_speaking = True
+            subprocess.run(
+                ["espeak-ng", "-v", "sv+m3", text],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            is_speaking = False
+
+    t = threading.Thread(target=run_speech)
+    t.start()
+    t.join()
 
 def hidden_input() -> str:
     fd = sys.stdin.fileno()
@@ -138,7 +176,7 @@ def hidden_input() -> str:
 
 try:
     while True:
-        update_status("You can type...")
+        update_status("ready")
         prompt = hidden_input()
         chat_history.append({"role": "user", "content": prompt})
 
@@ -146,14 +184,14 @@ try:
         buffer = ""
         first_sentence_spoken = False
 
-        update_status("Thinking...")
+        update_status("thinking")
         for chunk in ollama.chat(model=model, messages=chat_history, stream=True):
             text = chunk['message']['content']
             response += text
             buffer += text
 
             if not first_sentence_spoken and any(p in buffer for p in ['.', '!', '?']):
-                update_status("Typing...")
+                update_status("typing")
                 first_sentence_spoken = True
 
             while any(p in buffer for p in ['.', '!', '?']):
@@ -170,11 +208,17 @@ try:
             speak(buffer.strip())
 
         chat_history.append({"role": "assistant", "content": response})
-        update_status("You can type...")
+        update_status("ready")
 
 except KeyboardInterrupt:
     glitching = False
     glitch_thread.join()
+    speaking_thread.join()
     print("\033[?25h", end="", flush=True)
+    
+    # Turn off all lamps explicitly before cleanup
+    for pin in GPIO_PINS.values():
+        GPIO.output(pin, GPIO.LOW)
     GPIO.cleanup()
+
     os.system('cls' if os.name == 'nt' else 'clear')
