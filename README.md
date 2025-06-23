@@ -3,7 +3,7 @@ An AI robot running on a Raspberry Pi 4B with 8gb ram. It uses a quantized Gemma
 <img src="img.png" alt="Icon" width="600px">
 
 # How to install
-1. Wire your Raspberry Pi like this:<br><br>
+1. Wire your Raspberry Pi like this:<br>
 <img src="scematic.png" alt="Icon" width="600px">
 
 3. Install ollama:
