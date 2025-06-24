@@ -16,12 +16,14 @@ def clear_screen():
 
 # Print commands
 commands = [
-    "#sv:   Ändra språket till Svenska",
-    "#en:   Change the language to English",
-    "#stäng: Stäng programmet"
+    "#sv:    Ändra språket till Svenska",
+    "#en:    Change the language to English",
+    "#stäng: Stäng programmet",
+    "#m:     Manlig röst",
+    "#k:     Kvinnlig röst"
 ]
 
-clear_screen()  # Clear first so commands show cleanly
+clear_screen()
 for i, line in enumerate(commands, start=1):
     print(f"\033[{i};1H\033[32m{line}\033[0m")
 
@@ -63,7 +65,7 @@ animation_thread = None
 def print_art(art):
     art_lines = art.strip().splitlines()
     for i, line in enumerate(art_lines):
-        x_pos = start_x + (14 if i == 0 else 0)    # shift first line 14 chars right to compensate for removal of leading white space
+        x_pos = start_x + (14 if i == 0 else 0)
         print(f"\033[{start_y + i};{x_pos}H\033[32m{line}\033[0m")
 
 def mouth_animation():
@@ -76,31 +78,26 @@ def mouth_animation():
         time.sleep(0.3)
     print_art(MOUTH_CLOSED)
 
-# Print initial mouth closed art
 print_art(MOUTH_CLOSED)
 
+language_base = 'sv'
+gender = 'm'
+lang = f'{language_base}+{gender}3'
 model = 'my_model:sv'
-lang = 'sv+m3'  # Default language is Swedish
 chat_history = []
-
 
 def speak(text: str, lang: str):
     global is_speaking, animation_thread
-
     if text.strip():
         is_speaking = True
-
-        # Start animation thread if not running
         if animation_thread is None or not animation_thread.is_alive():
             animation_thread = threading.Thread(target=mouth_animation, daemon=True)
             animation_thread.start()
-
         subprocess.run(
             ["espeak-ng", "-v", lang, text],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
-
         is_speaking = False
         if animation_thread:
             animation_thread.join()
@@ -131,33 +128,49 @@ try:
     while True:
         prompt = hidden_input()
 
-        if prompt.strip() in ['#sv', '#en', '#quit', '#stäng']:
+        if prompt.strip() in ['#sv', '#en', '#quit', '#stäng', '#m', '#k', '#f']:
             if prompt == '#sv':
-
-                lang = 'sv+m3'    # Change the language to Swedish
+                language_base = 'sv'
+                lang = f'{language_base}+{gender}3'
                 model = 'my_model:sv'
-                # Print commands
                 commands = [
-                    "#sv:   Ändra språket till Svenska",
-                    "#en:   Change the language to English",
-                    "#stäng: Stäng programmet"
+                    "#sv:    Ändra språket till Svenska",
+                    "#en:    Change the language to English",
+                    "#stäng: Stäng programmet",
+                    "#m:     Manlig röst",
+                    "#k:     Kvinnlig röst"
                 ]
-                clear_screen()  # Clear first so commands show cleanly
+                clear_screen()
                 for i, line in enumerate(commands, start=1):
                     print(f"\033[{i};1H\033[32m{line}\033[0m")
                 speak("Språket är nu sätt till svenska.", lang)
+
             elif prompt == '#en':
-                lang = 'en-us+m3'    # Change the language to English
-                model = 'my_model:en'# Print commands
+                language_base = 'en-us'
+                lang = f'{language_base}+{gender}3'
+                model = 'my_model:en'
                 commands = [
                     "#sv:   Ändra språket till Svenska",
                     "#en:   Change the language to English",
-                    "#quit: Close the program"
+                    "#quit: Close the program",
+                    "#m:     Male voice",
+                    "#f:     Female voice"
                 ]
-                clear_screen()  # Clear first so commands show cleanly
+                clear_screen()
                 for i, line in enumerate(commands, start=1):
                     print(f"\033[{i};1H\033[32m{line}\033[0m")
                 speak("The language is now set to English.", lang)
+
+            elif prompt == '#m':
+                gender = 'm'
+                lang = f'{language_base}+{gender}3'
+                speak("Nu har jag en manlig röst." if language_base == 'sv' else "Now I have a male voice.", lang)
+
+            elif prompt in ['#k', '#f']:
+                gender = 'f'
+                lang = f'{language_base}+{gender}3'
+                speak("Nu har jag en kvinnlig röst." if language_base == 'sv' else "Now I have a female voice.", lang)
+
             elif prompt in ['#quit', '#stäng']:
                 is_speaking = False
                 if animation_thread:
@@ -169,7 +182,6 @@ try:
             continue
 
         chat_history.append({"role": "user", "content": prompt})
-
         response = ""
         buffer = ""
         first_sentence_spoken = False
@@ -202,5 +214,5 @@ except KeyboardInterrupt:
     if animation_thread:
         animation_thread.join()
     print("\033[?25h", end="", flush=True)
-
+    
     clear_screen()
