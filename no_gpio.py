@@ -7,30 +7,6 @@ import shutil
 import os
 import time
 import threading
-import RPi.GPIO as GPIO
-
-# GPIO setup
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-
-GPIO_PINS = {
-    "typing": 5,
-    "thinking": 6,
-    "ready": 13
-}
-
-for pin in GPIO_PINS.values():
-    GPIO.setup(pin, GPIO.OUT)
-
-def update_status(state: str):
-    # Turn off all GPIO outputs
-    for pin in GPIO_PINS.values():
-        GPIO.output(pin, GPIO.LOW)
-
-    # Turn on the pin for the given state
-    pin = GPIO_PINS.get(state)
-    if pin is not None:
-        GPIO.output(pin, GPIO.HIGH)
 
 # Hide cursor
 print("\033[?25l", end="", flush=True)
@@ -42,7 +18,7 @@ def clear_screen():
 commands = [
     "#sv:   Ändra språket till Svenska",
     "#en:   Change the language to English",
-    "#quit: Stäng programmet"
+    "#stäng: Stäng programmet"
 ]
 
 clear_screen()  # Clear first so commands show cleanly
@@ -155,7 +131,7 @@ try:
     while True:
         prompt = hidden_input()
 
-        if prompt.strip() in ['#sv', '#en', '#quit']:
+        if prompt.strip() in ['#sv', '#en', '#quit', '#stäng']:
             if prompt == '#sv':
 
                 lang = 'sv+m3'    # Change the language to Swedish
@@ -164,7 +140,7 @@ try:
                 commands = [
                     "#sv:   Ändra språket till Svenska",
                     "#en:   Change the language to English",
-                    "#quit: Stäng programmet"
+                    "#stäng: Stäng programmet"
                 ]
                 clear_screen()  # Clear first so commands show cleanly
                 for i, line in enumerate(commands, start=1):
@@ -182,16 +158,11 @@ try:
                 for i, line in enumerate(commands, start=1):
                     print(f"\033[{i};1H\033[32m{line}\033[0m")
                 speak("The language is now set to English.", lang)
-            elif prompt == '#quit':
+            elif prompt in ['#quit', '#stäng']:
                 is_speaking = False
                 if animation_thread:
                     animation_thread.join()
                 print("\033[?25h", end="", flush=True)
-
-                # Turn off all lamps explicitly before cleanup
-                for pin in GPIO_PINS.values():
-                    GPIO.output(pin, GPIO.LOW)
-                GPIO.cleanup()
 
                 clear_screen()
                 break
@@ -203,14 +174,12 @@ try:
         buffer = ""
         first_sentence_spoken = False
 
-        update_status("thinking")
         for chunk in ollama.chat(model=model, messages=chat_history, stream=True):
             text = chunk['message']['content']
             response += text
             buffer += text
 
             if not first_sentence_spoken and any(p in buffer for p in ['.', '!', '?']):
-                update_status("typing")
                 first_sentence_spoken = True
 
             while any(p in buffer for p in ['.', '!', '?']):
@@ -227,17 +196,11 @@ try:
             speak(buffer.strip(), lang)
 
         chat_history.append({"role": "assistant", "content": response})
-        update_status("ready")
 
 except KeyboardInterrupt:
     is_speaking = False
     if animation_thread:
         animation_thread.join()
     print("\033[?25h", end="", flush=True)
-
-    # Turn off all lamps explicitly before cleanup
-    for pin in GPIO_PINS.values():
-        GPIO.output(pin, GPIO.LOW)
-    GPIO.cleanup()
 
     clear_screen()
