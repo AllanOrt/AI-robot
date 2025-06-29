@@ -42,15 +42,18 @@ def clear_screen():
 commands = [
     "#sv:    Ändra språket till Svenska",
     "#en:    Change the language to English",
-    "#stäng: Stäng programmet",
     "#m:     Manlig röst",
-    "#k:     Kvinnlig röst"
+    "#k:     Kvinnlig röst",
+    "#göm:   Göm kommandomenyn",
+    "#hjälp: Visa kommandomenyn",
+    "#stäng: Stäng programmet"
 ]
 
 clear_screen()
 for i, line in enumerate(commands, start=1):
     print(f"\033[{i};1H\033[32m{line}\033[0m")
 
+# Mouts
 MOUTH_CLOSED = """
               ▄▄▄▄▄▄          ▄▄▄▄▄▄              
            ▄▀▀      ▀▀▀▀▀▀▀▀▀▀      ▀▀▄           
@@ -76,7 +79,7 @@ MOUTH_OPEN = """
              ▀▀▀▀▀▄▄▄        ▄▄▄▀▀▀▀▀             
                      ▀▀▀▀▀▀▀▀                     
 """
-
+# Center the mouth
 cols, rows = shutil.get_terminal_size()
 lines = MOUTH_CLOSED.strip().splitlines()
 max_len = max(len(line) for line in lines)
@@ -104,6 +107,7 @@ def mouth_animation():
 
 print_art(MOUTH_CLOSED)
 
+# Variables for the chatbot
 language_base = 'sv'
 gender = 'm'
 lang = f'{language_base}+{gender}3'
@@ -152,7 +156,7 @@ try:
     while True:
         prompt = hidden_input()
 
-        if prompt.strip() in ['#sv', '#en', '#quit', '#stäng', '#m', '#k', '#f']:
+        if prompt.strip() in ['#sv', '#en', '#m', '#f', '#k', '#hide', '#göm', '#help', '#hjälp', '#quit', '#stäng']:
             if prompt == '#sv':
                 language_base = 'sv'
                 lang = f'{language_base}+{gender}3'
@@ -160,9 +164,11 @@ try:
                 commands = [
                     "#sv:    Ändra språket till Svenska",
                     "#en:    Change the language to English",
-                    "#stäng: Stäng programmet",
                     "#m:     Manlig röst",
-                    "#k:     Kvinnlig röst"
+                    "#k:     Kvinnlig röst",
+                    "#göm:   Göm kommandomenyn",
+                    "#hjälp: Visa kommandomenyn",
+                    "#stäng: Stäng programmet"
                 ]
                 clear_screen()
                 for i, line in enumerate(commands, start=1):
@@ -176,9 +182,11 @@ try:
                 commands = [
                     "#sv:   Ändra språket till Svenska",
                     "#en:   Change the language to English",
-                    "#quit: Close the program",
-                    "#m:     Male voice",
-                    "#f:     Female voice"
+                    "#m:    Male voice",
+                    "#f:    Female voice",
+                    "#hide  Hide the command menu",
+                    "#help  Show the command menu",
+                    "#quit: Close the program"
                 ]
                 clear_screen()
                 for i, line in enumerate(commands, start=1):
@@ -190,10 +198,41 @@ try:
                 lang = f'{language_base}+{gender}3'
                 speak("Nu har jag en manlig röst." if language_base == 'sv' else "Now I have a male voice.", lang)
 
-            elif prompt in ['#k', '#f']:
+            elif prompt in ['#f', '#k']:
                 gender = 'f'
                 lang = f'{language_base}+{gender}3'
                 speak("Nu har jag en kvinnlig röst." if language_base == 'sv' else "Now I have a female voice.", lang)
+                
+            elif prompt in ['#hide', '#göm']:
+                commands = []
+                clear_screen()
+                print_art(MOUTH_CLOSED)
+                
+            elif prompt in ['#help', '#hjälp']:
+                if lang == f'en+{gender}3':
+                    commands = [
+                        "#sv:   Ändra språket till Svenska",
+                        "#en:   Change the language to English",
+                        "#m:    Male voice",
+                        "#f:    Female voice",
+                        "#hide  Hide the command menu",
+                        "#help  Show the command menu",
+                        "#quit: Close the program"
+                    ]
+                elif lang == f'sv+{gender}3':
+                    commands = [
+                        "#sv:    Ändra språket till Svenska",
+                        "#en:    Change the language to English",
+                        "#m:     Manlig röst",
+                        "#k:     Kvinnlig röst",
+                        "#göm:   Göm kommandomenyn",
+                        "#hjälp: Visa kommandomenyn",
+                        "#stäng: Stäng programmet"
+                    ]
+                clear_screen()
+                for i, line in enumerate(commands, start=1):
+                    print(f"\033[{i};1H\033[32m{line}\033[0m")
+                print_art(MOUTH_CLOSED)
 
             elif prompt in ['#quit', '#stäng']:
                 is_speaking = False
