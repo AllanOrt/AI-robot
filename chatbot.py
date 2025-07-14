@@ -88,6 +88,10 @@ start_y = (rows - len(lines)) // 2 + 1
 
 is_speaking = False
 animation_thread = None
+input_allowed = True
+
+input_allowed = True
+input_lock = threading.Lock()
 
 def print_art(art):
     art_lines = art.strip().splitlines()
@@ -131,6 +135,8 @@ def speak(text: str, lang: str):
             animation_thread.join()
 
 def hidden_input() -> str:
+    while not input_allowed:
+        time.sleep(0.1)  # NEW: Wait until input is allowed
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
@@ -254,6 +260,7 @@ try:
         buffer = ""
         first_sentence_spoken = False
 
+        input_allowed = False
         update_status("thinking")
         for chunk in ollama.chat(model=model, messages=chat_history, stream=True):
             text = chunk['message']['content']
@@ -279,6 +286,7 @@ try:
 
         chat_history.append({"role": "assistant", "content": response})
         update_status("ready")
+        input_allowed = True
 
 except KeyboardInterrupt:
     is_speaking = False
