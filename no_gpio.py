@@ -8,48 +8,24 @@ import os
 import time
 import threading
 import cv2
-import RPi.GPIO as GPIO
 
 # Constants
 FRAME_WIDTH = 320
 FRAME_HEIGHT = 240
-SLEEP_INTERVAL = 0.2
+SLEEP_INTERVAL = 0.4
 
 # Variables
 dot_x = FRAME_WIDTH // 2  # Start dot horizontally in the middle
 prev_dot_x_normalized = None
+dot_x_lock = threading.Lock()  # Lock for thread-safe access to dot_x
 
 # Load haar cascades
 face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-eye_detector  = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
 
-# Initilize webcam:
+# Initialize webcam:
 camera = cv2.VideoCapture(0)
 camera.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
 camera.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
-
-# GPIO setup
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-
-GPIO_PINS = {
-    "typing": 5,
-    "thinking": 6,
-    "ready": 13
-}
-
-for pin in GPIO_PINS.values():
-    GPIO.setup(pin, GPIO.OUT)
-
-def update_status(state: str):
-    # Turn off all GPIO outputs
-    for pin in GPIO_PINS.values():
-        GPIO.output(pin, GPIO.LOW)
-
-    # Turn on the pin for the given state
-    pin = GPIO_PINS.get(state)
-    if pin is not None:
-        GPIO.output(pin, GPIO.HIGH)
 
 # Hide cursor
 print("\033[?25l", end="", flush=True)
@@ -72,7 +48,7 @@ clear_screen()
 for i, line in enumerate(commands, start=1):
     print(f"\033[{i};1H\033[32m{line}\033[0m")
 
-# Mouts
+# Mouth ASCII arts
 MOUTH_CLOSED = """
               ▄▄▄▄▄▄          ▄▄▄▄▄▄              
            ▄▀▀      ▀▀▀▀▀▀▀▀▀▀      ▀▀▄           
@@ -98,7 +74,7 @@ MOUTH_OPEN = """
              ▀▀▀▀▀▄▄▄        ▄▄▄▀▀▀▀▀             
                      ▀▀▀▀▀▀▀▀                     
 """
-# Center the mouth
+# Center the mouth in terminal
 cols, rows = shutil.get_terminal_size()
 lines = MOUTH_CLOSED.strip().splitlines()
 max_len = max(len(line) for line in lines)
@@ -107,8 +83,6 @@ start_y = (rows - len(lines)) // 2 + 1
 
 is_speaking = False
 animation_thread = None
-input_allowed = True
-
 input_allowed = True
 input_lock = threading.Lock()
 
@@ -130,7 +104,7 @@ def mouth_animation():
 
 print_art(MOUTH_CLOSED)
 
-# Variables for the chatbot
+# Variables for chatbot
 language_base = 'sv'
 gender = 'm'
 lang = f'{language_base}+{gender}3'
@@ -177,39 +151,44 @@ def hidden_input() -> str:
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
-def eye_tracking():
-    ret, frame = camera.read()
-    frame = cv2.flip(frame, 1)  # Mirror the frame horizontally
+def face_tracking():
+    global dot_x, prev_dot_x_normalized
 
+    ret, frame = camera.read()
+    if not ret:
+        return
+
+    frame = cv2.flip(frame, 1)  # Mirror the frame horizontally
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     detected_faces = face_detector.detectMultiScale(gray_frame, 1.3, 5)
 
-    eye_centers_x = []
+    if len(detected_faces) > 0:
+        # Use the first detected face (or pick the largest one if needed)
+        x, y, w, h = detected_faces[0]
+        face_center_x = x + w // 2
+        with dot_x_lock:
+            dot_x = face_center_x
 
-    for (x, y, w, h) in detected_faces:
-        face_region = gray_frame[y:y + h // 2, x:x + w]
-        detected_eyes = eye_detector.detectMultiScale(face_region)
-        detected_eyes = sorted(detected_eyes, key=lambda eye: eye[0])[:2]
-
-        for (ex, ey, ew, eh) in detected_eyes:
-            center_x = x + ex + ew // 2
-            eye_centers_x.append(center_x)
-
-    # === Update dot x position only if eyes detected ===
-    if len(eye_centers_x) == 2:
-        avg_x = (eye_centers_x[0] + eye_centers_x[1]) // 2
-        dot_x = avg_x
-    elif len(eye_centers_x) == 1:
-        dot_x = eye_centers_x[0]
-
-    # === Output x position if changed ===
-    dot_x_normalized = round((dot_x / (FRAME_WIDTH - 1)) * 2 - 1, 2)
+    # Normalize and print if changed
+    with dot_x_lock:
+        dot_x_normalized = round((dot_x / (FRAME_WIDTH - 1)) * 2 - 1, 2)
 
     if prev_dot_x_normalized != dot_x_normalized:
-        print(f"{dot_x_normalized:.2f}")
+        print(f"\033[{rows};1H\033[33mX pos of face: {dot_x_normalized:.2f}\033[0m", end="", flush=True)
         prev_dot_x_normalized = dot_x_normalized
 
     time.sleep(SLEEP_INTERVAL)
+
+def face_tracking_loop():
+    try:
+        while True:
+            face_tracking()
+    except Exception as e:
+        print(f"Face tracking error: {e}")
+
+# Start face tracking thread
+face_thread = threading.Thread(target=face_tracking_loop, daemon=True)
+face_thread.start()
 
 try:
     while True:
@@ -261,12 +240,12 @@ try:
                 gender = 'f'
                 lang = f'{language_base}+{gender}3'
                 speak("Nu har jag en kvinnlig röst." if language_base == 'sv' else "Now I have a female voice.", lang)
-                
+
             elif prompt in ['#hide', '#göm']:
                 commands = []
                 clear_screen()
                 print_art(MOUTH_CLOSED)
-                
+
             elif prompt in ['#help', '#hjälp']:
                 if lang == f'en+{gender}3':
                     commands = [
@@ -299,10 +278,6 @@ try:
                     animation_thread.join()
                 print("\033[?25h", end="", flush=True)
 
-                for pin in GPIO_PINS.values():
-                    GPIO.output(pin, GPIO.LOW)
-                GPIO.cleanup()
-
                 camera.release()
 
                 clear_screen()
@@ -315,46 +290,28 @@ try:
         first_sentence_spoken = False
 
         input_allowed = False
-        update_status("thinking")
         for chunk in ollama.chat(model=model, messages=chat_history, stream=True):
             text = chunk['message']['content']
             response += text
             buffer += text
 
-            # Check if the first sentece has been spoken.
-            if not first_sentence_spoken and any(p in buffer for p in ['.', '!', '?']):
-                update_status("typing")
+            if '.' in buffer and not first_sentence_spoken:
+                sentence_end = buffer.find('.') + 1
+                speak(buffer[:sentence_end], lang)
+                buffer = buffer[sentence_end:].strip()
                 first_sentence_spoken = True
 
-            while any(p in buffer for p in ['.', '!', '?']):
-                for p in ['.', '!', '?']:
-                    if p in buffer:
-                        i = buffer.find(p)
-                        sentence = buffer[:i+1].strip()
-                        if sentence:
-                            speak(sentence, lang)
-                        buffer = buffer[i+1:].lstrip()
-                        break
-
-        if buffer.strip():
-            speak(buffer.strip(), lang)
-
-        eye_tracking()
+        if buffer:
+            speak(buffer, lang)
 
         chat_history.append({"role": "assistant", "content": response})
-        update_status("ready")
         input_allowed = True
 
 except KeyboardInterrupt:
+    pass
+
+finally:
     is_speaking = False
-    if animation_thread:
-        animation_thread.join()
     print("\033[?25h", end="", flush=True)
-
-    for pin in GPIO_PINS.values():
-        GPIO.output(pin, GPIO.LOW)
-    GPIO.cleanup()
-
     camera.release()
-    
     clear_screen()
