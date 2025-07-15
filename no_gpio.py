@@ -12,7 +12,7 @@ import cv2
 # Constants
 FRAME_WIDTH = 320
 FRAME_HEIGHT = 240
-SLEEP_INTERVAL = 0.4
+SLEEP_INTERVAL = 0.5
 
 # Variables
 dot_x = FRAME_WIDTH // 2  # Start dot horizontally in the middle
@@ -22,7 +22,7 @@ dot_x_lock = threading.Lock()  # Lock for thread-safe access to dot_x
 # Load haar cascades
 face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-# Initialize webcam:
+# Initialize webcam
 camera = cv2.VideoCapture(0)
 camera.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
 camera.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
@@ -279,8 +279,8 @@ try:
                 print("\033[?25h", end="", flush=True)
 
                 camera.release()
-
                 clear_screen()
+
                 break
             continue
 
@@ -295,23 +295,31 @@ try:
             response += text
             buffer += text
 
-            if '.' in buffer and not first_sentence_spoken:
-                sentence_end = buffer.find('.') + 1
-                speak(buffer[:sentence_end], lang)
-                buffer = buffer[sentence_end:].strip()
+            # Check if the first sentece has been spoken.
+            if not first_sentence_spoken and any(p in buffer for p in ['.', '!', '?']):
                 first_sentence_spoken = True
 
-        if buffer:
-            speak(buffer, lang)
+            while any(p in buffer for p in ['.', '!', '?']):
+                for p in ['.', '!', '?']:
+                    if p in buffer:
+                        i = buffer.find(p)
+                        sentence = buffer[:i+1].strip()
+                        if sentence:
+                            speak(sentence, lang)
+                        buffer = buffer[i+1:].lstrip()
+                        break
+
+        if buffer.strip():
+            speak(buffer.strip(), lang)
+
+        face_tracking()
 
         chat_history.append({"role": "assistant", "content": response})
         input_allowed = True
 
-except KeyboardInterrupt:
-    pass
-
-finally:
+except:
     is_speaking = False
     print("\033[?25h", end="", flush=True)
+
     camera.release()
     clear_screen()
